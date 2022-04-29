@@ -1,0 +1,166 @@
+---
+title: "Analysis of Airline Crash Data"
+author: "Noah Evans"
+date: "4/4/2022"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r include=FALSE}
+# Required Packages:
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") # We need this for ggplot2 functions.'
+
+# We use the above scheme for any required packages.
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(tidyr)) install.packages("tidyr", repos = "http://cran.us.r-project.org")
+if(!require(scales)) install.packages("scales", repos = "http://cran.us.r-project.org")
+
+```
+
+```{r, include=FALSE}
+urlfile <- "https://github.com/NoahE53/IS4300-Final-Project/raw/main/Airplane_Crashes_and_Fatalities_Since_1908.csv"
+Crash <- read_csv(url(urlfile)) #reads in data set
+
+Crash <- Crash[,1:12] #removes summary from Crash data
+
+Crash$Date <- as.Date(Crash$Date, "%m/%d/%y")
+Crash$Date <- as.Date(ifelse(Crash$Date >= "2008-09-17", 
+                                 format(Crash$Date, "19%y-%m-%d"), 
+                                 format(Crash$Date))) 
+index <- order(Crash$Date, decreasing = FALSE)
+Crash <- Crash[index,]
+#formats date and orders crash data by date
+
+Crash$Operator <- as.factor(Crash$Operator)
+Crash$Type <- as.factor(Crash$Type)
+#formats data types
+
+Crash <- mutate(Crash, Count = 1) #creates counter variable for number of crashes
+```
+
+
+## Introduction: Crash Data
+
+This report involves the visualization of plane crashes throughout the years. This data set does not include every single plane crash, but rather omits many of the smaller more insignificant incidents. The data set includes the following:
+
+All civil and commercial aviation accidents of scheduled and non-scheduled passenger airliners worldwide, which resulted in a fatality (including all U.S. Part 121 and Part 135 fatal accidents)
+
+All cargo, positioning, ferry and test flight fatal accidents.
+
+All military transport accidents with 10 or more fatalities.
+
+All commercial and military helicopter accidents with greater than 10 fatalities.
+
+All civil and military airship accidents involving fatalities.
+
+Aviation accidents involving the death of famous people.
+
+Aviation accidents or incidents of noteworthy interest.
+
+We wish to analyze the amount of incidences through the years to determine if there have been
+significant strides in airplane safety. The data set used can be found at 
+<https://github.com/NoahE53/IS4300-Final-Project>.
+
+## Visualization I
+
+```{r, echo=FALSE}
+OpCrashes <- as.data.frame(Crash %>% group_by(Operator) %>% summarize(Crashes_Total = sum(Count)))
+#counts number of crashes per operator
+top_7 <- OpCrashes %>% top_n(7,Crashes_Total) %>% arrange(desc(Crashes_Total))
+#gives top 7 operators with highest number of crashes
+
+ggplot(top_7, aes(x=reorder(Operator, -Crashes_Total), y=Crashes_Total)) + 
+  geom_bar(stat="identity", width=.5, fill="tomato3") + 
+  scale_x_discrete(guide = guide_axis(n.dodge=3)) +
+  labs(title="Ordered Bar Chart", 
+       subtitle="Aircraft Operator Vs Num. of Crashes",
+       x = "Operator", y = "Crashes")
+#creates plot of crashes per operator
+```
+
+This chart displays the top seven operators with the most crashes. It is important to note that while United Airlines is the only U.S. airline that ranks this high in crashes, it is also one of the oldest.
+
+## Visualization II
+
+```{r, echo=FALSE}
+TypeCrashes <- as.data.frame(Crash %>% group_by(Type) %>% summarize(Crashes_Total = sum(Count)))
+#counts number of crashes per type
+top_5 <- TypeCrashes %>% top_n(5,Crashes_Total) %>% arrange(desc(Crashes_Total))
+#gives top 5 types with highest number of crashes
+
+ggplot(top_5, aes(x=reorder(Type, Crashes_Total), y=Crashes_Total)) + 
+  geom_point(col="tomato2", size=3) +   # Draw points
+  geom_segment(aes(x=Type, 
+                   xend=Type, 
+                   y=min(Crashes_Total), 
+                   yend=max(Crashes_Total)), 
+               linetype="dashed", 
+               size=0.1) +   # Draw dashed lines
+  labs(title="Dot Plot", 
+       subtitle="Type Vs Total Crashes",
+       x="Type", y="Crashes") +  
+  coord_flip()
+```
+
+This visualization displays the top five large aircraft models with the most crashes.
+
+## Visualization III
+
+```{r, echo=FALSE}
+Crash <- Crash %>% group_by(Year = lubridate::floor_date(Date, "year"))
+Crash$Year <- as.factor(format(Crash$Date, "%Y"))
+
+CrashYears <- as.data.frame(Crash %>% group_by(Year) %>% summarize(Crashes_Total = sum(Count)))
+CrashYears$Year <- as.character(CrashYears$Year)
+CrashYears$Year <- as.numeric(CrashYears$Year)
+YearsFilled <- CrashYears %>% complete(Year = 1908:2007, 
+           fill = list(Crashes_Total = 0)) %>% as.data.frame()
+#creates data frame of crashes by year and fills in missing years with 0 crashes
+
+ggplot(YearsFilled, aes(x=Year)) + 
+  geom_line(aes(y=Crashes_Total)) + 
+  labs(title="Time Series Chart", 
+       subtitle="Crashes per Year", 
+       y="Crashes")
+#plots data frame
+```
+
+This chart displays the number of significant crashes over time.
+
+## Visualization IV
+
+```{r, echo=FALSE}
+DeathYears <- as.data.frame(Crash %>% group_by(Year) %>% summarize(Death_Total = sum(Fatalities)))
+DeathYears$Year <- as.character(DeathYears$Year)
+DeathYears$Year <- as.numeric(DeathYears$Year)
+DYearsFilled <- DeathYears %>% complete(Year = 1908:2007, 
+                                       fill = list(Death_Total = 0)) %>% as.data.frame()
+#creates data frame of deaths by year and fills in missing years with 0 deaths
+
+ggplot(DYearsFilled, aes(x=Year)) + 
+  geom_line(aes(y=Death_Total)) + 
+  labs(title="Time Series Chart", 
+       subtitle="Deaths per Year", 
+       y="Deaths")
+#plots data frame
+```
+
+This chart displays the number of deaths in the significant airplane crashes over time.
+
+## Analysis
+
+It is notable to mention that the United States airlines seem to rank well when it comes to accident rates on the global stage. United has had relatively few incidents, given the company's age and the U.S. Military can attribute much of the significant losses in aviation to WWII.
+
+It is important to note that all of the most crashed planes, excluding the Otter, are World War II era or older.The Otter is a bush plane that is often used for cargo transportation in very remote and dangerous environments, such as the Alaskan Tundra. Because of this, the plane cannot be faulted, but rather the dangerous missions it is used for. The plane that ranks highest in significant events is the Douglas DC-3. This was the first plane to widely be used by airlines. It, like its WWII descendants that also ranked high in accidents, did not have a pressurized cabin. This limited the plane's altitude capability which meant it was in the middle of the weather. Modern airline cabins are pressurized, which allow for cruising altitudes far above any weather concern.
+
+Both time series charts indicate that significant crashes and deaths rose dramatically in WWII as aviation began to become widespread and peaked in the early 1970'. Since then, the amount of large scale incidents has continually dropped. In 2000 there was not a single large scale incident.
+
+## Conclusion
+
+From this data, it can be concluded that large passenger aircraft have made significant strides in safety as the years have progressed. The technology of cabin pressurization has increased the safety of flying in a major way by allowing aircraft to avoid bad weather. If the rapid decline in major incidents remains constant, then there may come a time when passenger aircraft incidents are unheard of.
+
+It can also be concluded that, although modern large scale aviation incidents are rare, the mission an aircraft is assigned can change the likelihood of an incident significantly.The only modern plane in the top 5 list of planes with the most crashes is only there because of its mission. It is the dangerous and necessary role it takes on that has lead it to have so many incidents. All of the other planes on that list are there primarily because of a less advanced construction.With that being said, one may no longer wish they had been around in the "Golden Age of Aviation" as the risk of death was much higher.
